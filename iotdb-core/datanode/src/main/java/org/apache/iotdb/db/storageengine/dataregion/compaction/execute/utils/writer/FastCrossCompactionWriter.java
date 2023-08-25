@@ -19,15 +19,20 @@
 
 package org.apache.iotdb.db.storageengine.dataregion.compaction.execute.utils.writer;
 
+import org.apache.iotdb.db.storageengine.dataregion.compaction.execute.utils.CompactionUtils;
+import org.apache.iotdb.db.storageengine.dataregion.compaction.io.CompactionTsFileWriter;
 import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResource;
 import org.apache.iotdb.tsfile.exception.write.PageException;
 import org.apache.iotdb.tsfile.file.header.PageHeader;
 import org.apache.iotdb.tsfile.file.metadata.ChunkMetadata;
 import org.apache.iotdb.tsfile.file.metadata.IChunkMetadata;
+import org.apache.iotdb.tsfile.fileSystem.FSType;
+import org.apache.iotdb.tsfile.read.TimeValuePair;
 import org.apache.iotdb.tsfile.read.TsFileSequenceReader;
 import org.apache.iotdb.tsfile.read.common.Chunk;
 import org.apache.iotdb.tsfile.read.common.block.column.Column;
 import org.apache.iotdb.tsfile.read.common.block.column.TimeColumn;
+import org.apache.iotdb.tsfile.utils.FSUtils;
 import org.apache.iotdb.tsfile.write.chunk.AlignedChunkWriterImpl;
 import org.apache.iotdb.tsfile.write.chunk.ChunkWriterImpl;
 
@@ -40,12 +45,17 @@ public class FastCrossCompactionWriter extends AbstractCrossCompactionWriter {
   // Only used for fast compaction performer
   protected Map<TsFileResource, TsFileSequenceReader> readerMap;
 
+  private final boolean local;
+  private final boolean[] hasInitStartChunkGroup;
+
   public FastCrossCompactionWriter(
       List<TsFileResource> targetResources,
       List<TsFileResource> seqSourceResources,
       Map<TsFileResource, TsFileSequenceReader> readerMap)
       throws IOException {
     super(targetResources, seqSourceResources);
+    local = FSUtils.getFSType(targetResources.get(0).getTsFile()) == FSType.LOCAL;
+    hasInitStartChunkGroup = new boolean[targetFileWriters.size()];
     this.readerMap = readerMap;
   }
 
@@ -60,6 +70,45 @@ public class FastCrossCompactionWriter extends AbstractCrossCompactionWriter {
     return readerMap.get(resource);
   }
 
+  @Override
+  public void startChunkGroup(String deviceId, boolean isAlign) throws IOException {
+    if (local) {
+      super.startChunkGroup(deviceId, isAlign);
+    } else {
+      this.deviceId = deviceId;
+      this.isAlign = isAlign;
+      this.seqFileIndexArray = new int[subTaskNum];
+      checkIsDeviceExistAndGetDeviceEndTime();
+      for (int i = 0; i < targetFileWriters.size(); i++) {
+        // chunkGroupHeaderSize = targetFileWriters.get(i).startChunkGroup(deviceId);
+        targetFileWriters.get(i).startInitChunkGroup(deviceId);
+      }
+    }
+  }
+
+  @Override
+  public void endChunkGroup() throws IOException {
+    if (local) {
+      super.endChunkGroup();
+    } else {
+      for (int i = 0; i < seqTsFileResources.size(); i++) {
+        CompactionTsFileWriter targetFileWriter = targetFileWriters.get(i);
+        if (isDeviceExistedInTargetFiles[i]) {
+          // update resource
+          CompactionUtils.updateResource(targetResources.get(i), targetFileWriter, deviceId);
+          targetFileWriter.endChunkGroup();
+        } else {
+          if (hasInitStartChunkGroup[i]) {
+            targetFileWriter.truncate(targetFileWriter.getPos() - chunkGroupHeaderSize);
+          }
+        }
+        hasInitStartChunkGroup[i] = false;
+        isDeviceExistedInTargetFiles[i] = false;
+      }
+      seqFileIndexArray = null;
+    }
+  }
+
   /**
    * Flush nonAligned chunk to tsfile directly. Return whether the chunk is flushed to tsfile
    * successfully or not. Return false if the unsealed chunk is too small or the end time of chunk
@@ -68,9 +117,16 @@ public class FastCrossCompactionWriter extends AbstractCrossCompactionWriter {
   @Override
   public boolean flushNonAlignedChunk(Chunk chunk, ChunkMetadata chunkMetadata, int subTaskId)
       throws IOException {
-    checkTimeAndMayFlushChunkToCurrentFile(chunkMetadata.getStartTime(), subTaskId);
     int fileIndex = seqFileIndexArray[subTaskId];
-    if (!checkIsChunkSatisfied(chunkMetadata, fileIndex, subTaskId)) {
+    boolean checkIsChunkSatisfied = checkIsChunkSatisfied(chunkMetadata, fileIndex, subTaskId);
+    if (checkIsChunkSatisfied) {
+      if (!local && !hasInitStartChunkGroup[fileIndex]) {
+        chunkGroupHeaderSize = targetFileWriters.get(fileIndex).startChunkGroup(deviceId);
+        hasInitStartChunkGroup[fileIndex] = true;
+      }
+    }
+    checkTimeAndMayFlushChunkToCurrentFile(chunkMetadata.getStartTime(), subTaskId);
+    if (!checkIsChunkSatisfied) {
       // if unsealed chunk is not large enough or chunk.endTime > file.endTime, then deserialize the
       // chunk
       return false;
@@ -99,9 +155,16 @@ public class FastCrossCompactionWriter extends AbstractCrossCompactionWriter {
       List<IChunkMetadata> valueChunkMetadatas,
       int subTaskId)
       throws IOException {
-    checkTimeAndMayFlushChunkToCurrentFile(timeChunkMetadata.getStartTime(), subTaskId);
     int fileIndex = seqFileIndexArray[subTaskId];
-    if (!checkIsChunkSatisfied(timeChunkMetadata, fileIndex, subTaskId)) {
+    boolean checkIsChunkSatisfied = checkIsChunkSatisfied(timeChunkMetadata, fileIndex, subTaskId);
+    if (checkIsChunkSatisfied) {
+      if (!local && !hasInitStartChunkGroup[fileIndex]) {
+        chunkGroupHeaderSize = targetFileWriters.get(fileIndex).startChunkGroup(deviceId);
+        hasInitStartChunkGroup[fileIndex] = true;
+      }
+    }
+    checkTimeAndMayFlushChunkToCurrentFile(timeChunkMetadata.getStartTime(), subTaskId);
+    if (!checkIsChunkSatisfied) {
       // if unsealed chunk is not large enough or chunk.endTime > file.endTime, then deserialize the
       // chunk
       return false;
@@ -137,9 +200,16 @@ public class FastCrossCompactionWriter extends AbstractCrossCompactionWriter {
       List<PageHeader> valuePageHeaders,
       int subTaskId)
       throws IOException, PageException {
-    checkTimeAndMayFlushChunkToCurrentFile(timePageHeader.getStartTime(), subTaskId);
     int fileIndex = seqFileIndexArray[subTaskId];
-    if (!checkIsPageSatisfied(timePageHeader, fileIndex, subTaskId)) {
+    boolean checkIsPageSatisfied = checkIsPageSatisfied(timePageHeader, fileIndex, subTaskId);
+    if (checkIsPageSatisfied) {
+      if (!local && !hasInitStartChunkGroup[fileIndex]) {
+        chunkGroupHeaderSize = targetFileWriters.get(fileIndex).startChunkGroup(deviceId);
+        hasInitStartChunkGroup[fileIndex] = true;
+      }
+    }
+    checkTimeAndMayFlushChunkToCurrentFile(timePageHeader.getStartTime(), subTaskId);
+    if (!checkIsPageSatisfied) {
       // unsealed page is too small or page.endTime > file.endTime, then deserialize the page
       return false;
     }
@@ -173,9 +243,16 @@ public class FastCrossCompactionWriter extends AbstractCrossCompactionWriter {
   public boolean flushNonAlignedPage(
       ByteBuffer compressedPageData, PageHeader pageHeader, int subTaskId)
       throws IOException, PageException {
-    checkTimeAndMayFlushChunkToCurrentFile(pageHeader.getStartTime(), subTaskId);
     int fileIndex = seqFileIndexArray[subTaskId];
-    if (!checkIsPageSatisfied(pageHeader, fileIndex, subTaskId)) {
+    boolean checkIsPageSatisfied = checkIsPageSatisfied(pageHeader, fileIndex, subTaskId);
+    if (checkIsPageSatisfied) {
+      if (!local && !hasInitStartChunkGroup[fileIndex]) {
+        chunkGroupHeaderSize = targetFileWriters.get(fileIndex).startChunkGroup(deviceId);
+        hasInitStartChunkGroup[fileIndex] = true;
+      }
+    }
+    checkTimeAndMayFlushChunkToCurrentFile(pageHeader.getStartTime(), subTaskId);
+    if (!checkIsPageSatisfied) {
       // unsealed page is too small or page.endTime > file.endTime, then deserialize the page
       return false;
     }
@@ -191,6 +268,16 @@ public class FastCrossCompactionWriter extends AbstractCrossCompactionWriter {
     isEmptyFile[fileIndex] = false;
     lastTime[subTaskId] = pageHeader.getEndTime();
     return true;
+  }
+
+  @Override
+  public void write(TimeValuePair timeValuePair, int subTaskId) throws IOException {
+    int fileIndex = seqFileIndexArray[subTaskId];
+    if (!local && !hasInitStartChunkGroup[fileIndex]) {
+      chunkGroupHeaderSize = targetFileWriters.get(fileIndex).startChunkGroup(deviceId);
+      hasInitStartChunkGroup[fileIndex] = true;
+    }
+    super.write(timeValuePair, subTaskId);
   }
 
   private boolean checkIsChunkSatisfied(

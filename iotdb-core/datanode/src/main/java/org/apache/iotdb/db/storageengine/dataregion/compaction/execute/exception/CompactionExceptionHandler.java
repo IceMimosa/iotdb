@@ -26,9 +26,9 @@ import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResource;
 import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResourceList;
 import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResourceStatus;
 import org.apache.iotdb.db.storageengine.rescon.memory.TsFileResourceManager;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
 import org.apache.iotdb.tsfile.utils.TsFileUtils;
 
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -107,7 +107,7 @@ public class CompactionExceptionHandler {
             fullStorageGroupName);
         tsFileManager.setAllowCompaction(false);
       } else {
-        FileUtils.delete(logFile);
+        FSFactoryProducer.getFSFactory().deleteIfExists(logFile);
       }
     } catch (IOException e) {
       // catch throwable when handling exception

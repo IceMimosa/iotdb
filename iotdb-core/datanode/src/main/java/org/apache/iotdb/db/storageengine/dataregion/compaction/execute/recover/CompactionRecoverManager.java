@@ -24,14 +24,14 @@ import org.apache.iotdb.db.storageengine.dataregion.compaction.execute.utils.log
 import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileManager;
 import org.apache.iotdb.db.storageengine.rescon.disk.TierManager;
 import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
+import org.apache.iotdb.tsfile.fileSystem.fsFactory.FSFactory;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -51,6 +51,8 @@ public class CompactionRecoverManager {
   private final TsFileManager tsFileManager;
   private final String logicalStorageGroupName;
   private final String dataRegionId;
+
+  private final FSFactory fsFactory = FSFactoryProducer.getFSFactory();
 
   public CompactionRecoverManager(
       TsFileManager tsFileManager, String logicalStorageGroupName, String dataRegionId) {
@@ -75,13 +77,15 @@ public class CompactionRecoverManager {
   private void recoverCompaction(boolean isInnerSpace, boolean isLogSequence) {
     List<String> dirs;
     if (isLogSequence) {
-      dirs = TierManager.getInstance().getAllLocalSequenceFileFolders();
+      dirs = TierManager.getInstance().getAllSequenceFileFolders();
     } else {
-      dirs = TierManager.getInstance().getAllLocalUnSequenceFileFolders();
+      dirs = TierManager.getInstance().getAllUnSequenceFileFolders();
     }
     for (String dir : dirs) {
       File storageGroupDir =
-          new File(dir + File.separator + logicalStorageGroupName + File.separator + dataRegionId);
+          FSFactoryProducer.getFSFactory()
+              .getFile(
+                  dir + File.separator + logicalStorageGroupName + File.separator + dataRegionId);
       if (!storageGroupDir.exists()) {
         return;
       }
@@ -98,32 +102,35 @@ public class CompactionRecoverManager {
         recoverCompaction(isInnerSpace, timePartitionDir);
 
         // recover temporary files generated during .mods file settled
-        recoverModSettleFile(timePartitionDir.toPath());
+        recoverModSettleFile(timePartitionDir);
       }
     }
   }
 
-  public void recoverModSettleFile(Path timePartitionDir) {
-    try (Stream<Path> settlesStream = Files.list(timePartitionDir)) {
+  public void recoverModSettleFile(File timePartitionDir) {
+    try {
+      File[] files = timePartitionDir.listFiles();
+      if (files == null) return;
+      Stream<File> settlesStream = Arrays.stream(files);
       settlesStream
           .filter(path -> path.toString().endsWith(MODS_SETTLE_FILE_SUFFIX))
           .forEach(
               modsSettle -> {
-                Path originModFile =
-                    modsSettle.resolveSibling(
-                        modsSettle.getFileName().toString().replace(SETTLE_SUFFIX, BLANK));
+                File originModFile =
+                    fsFactory.getFile(
+                        modsSettle.getParent(), modsSettle.getName().replace(SETTLE_SUFFIX, BLANK));
                 try {
-                  if (Files.exists(originModFile)) {
-                    Files.deleteIfExists(modsSettle);
+                  if (originModFile.exists()) {
+                    fsFactory.deleteIfExists(modsSettle);
                   } else {
-                    Files.move(modsSettle, originModFile);
+                    fsFactory.moveFile(modsSettle, originModFile);
                   }
                 } catch (IOException e) {
                   logger.error(
                       "recover mods file error on delete origin file or rename mods settle,", e);
                 }
               });
-    } catch (IOException e) {
+    } catch (Exception e) {
       logger.error("recover mods file error on list files:{}", timePartitionDir, e);
     }
   }

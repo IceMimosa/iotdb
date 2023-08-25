@@ -29,6 +29,7 @@ import org.apache.iotdb.tsfile.file.header.ChunkHeader;
 import org.apache.iotdb.tsfile.file.header.PageHeader;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSEncoding;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
 import org.apache.iotdb.tsfile.read.TsFileSequenceReader;
 import org.apache.iotdb.tsfile.read.common.BatchData;
 import org.apache.iotdb.tsfile.read.reader.page.PageReader;
@@ -190,7 +191,9 @@ public class TsFileValidationTool {
       List<String> previousBadFileMsgs = new ArrayList<>();
       try {
         TsFileResource resource = new TsFileResource(tsFile);
-        if (!new File(tsFile.getAbsolutePath() + TsFileResource.RESOURCE_SUFFIX).exists()) {
+        if (!FSFactoryProducer.getFSFactory()
+            .getFile(tsFile.getAbsolutePath() + TsFileResource.RESOURCE_SUFFIX)
+            .exists()) {
           // resource file does not exist, tsfile may not be flushed yet
           logger.warn(
               "{} does not exist ,skip it.",

@@ -35,17 +35,16 @@ import org.apache.iotdb.db.storageengine.dataregion.tsfile.generator.TsFileNameG
 import org.apache.iotdb.db.utils.FileLoaderUtils;
 import org.apache.iotdb.tsfile.common.constant.TsFileConstant;
 import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
+import org.apache.iotdb.tsfile.fileSystem.fsFactory.FSFactory;
 import org.apache.iotdb.tsfile.read.TsFileSequenceReader;
 import org.apache.iotdb.tsfile.utils.TsFileUtils;
 import org.apache.iotdb.tsfile.write.writer.TsFileIOWriter;
 
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -57,6 +56,8 @@ public class CompactionRecoverTask {
   private final boolean isInnerSpace;
   private final String fullStorageGroupName;
   private final TsFileManager tsFileManager;
+
+  private final FSFactory fsFactory = FSFactoryProducer.getFSFactory();
 
   public CompactionRecoverTask(
       String logicalStorageGroupName,
@@ -150,7 +151,7 @@ public class CompactionRecoverTask {
                 "{} [Compaction][Recover] Recover compaction successfully, delete log file {}",
                 fullStorageGroupName,
                 compactionLogFile);
-            FileUtils.delete(compactionLogFile);
+            fsFactory.deleteIfExists(compactionLogFile);
           } catch (IOException e) {
             logger.error(
                 "{} [Compaction][Recover] Exception occurs while deleting log file {}, "
@@ -255,9 +256,9 @@ public class CompactionRecoverTask {
    * the file is not found, it will return null.
    */
   private File getFileFromDataDirs(String filePath) {
-    String[] dataDirs = IoTDBDescriptor.getInstance().getConfig().getLocalDataDirs();
+    String[] dataDirs = IoTDBDescriptor.getInstance().getConfig().getDataDirs();
     for (String dataDir : dataDirs) {
-      File f = new File(dataDir, filePath);
+      File f = fsFactory.getFile(dataDir, filePath);
       if (f.exists()) {
         return f;
       }
@@ -347,7 +348,7 @@ public class CompactionRecoverTask {
       return true;
     }
     try {
-      Files.delete(file.toPath());
+      fsFactory.deleteIfExists(file);
     } catch (IOException e) {
       logger.error(
           "{} [Compaction][Recover] failed to remove file {}, exception: {}",
@@ -386,7 +387,7 @@ public class CompactionRecoverTask {
         File tmpTargetFile = targetFileIdentifier.getFileFromDataDirs();
         if (tmpTargetFile != null) {
           try {
-            Files.delete(tmpTargetFile.toPath());
+            fsFactory.deleteIfExists(tmpTargetFile);
           } catch (IOException e) {
             logger.error(
                 "{} [Compaction][Recover] failed to remove file {}, exception: {}",
@@ -395,11 +396,11 @@ public class CompactionRecoverTask {
                 e);
           }
           File chunkMetadataTempFile =
-              new File(
+              fsFactory.getFile(
                   tmpTargetFile.getAbsolutePath() + TsFileIOWriter.CHUNK_METADATA_TEMP_FILE_SUFFIX);
           if (chunkMetadataTempFile.exists()) {
             try {
-              Files.delete(chunkMetadataTempFile.toPath());
+              fsFactory.deleteIfExists(chunkMetadataTempFile);
             } catch (IOException e) {
               logger.error(
                   "{} [Compaction][Recover] failed to remove file {}, exception: {}",
@@ -413,7 +414,7 @@ public class CompactionRecoverTask {
 
       // delete compaction mods file
       File compactionModsFileFromOld =
-          new File(
+          fsFactory.getFile(
               tsFileManager.getStorageGroupDir()
                   + File.separator
                   + IoTDBConstant.COMPACTION_MODIFICATION_FILE_NAME_FROM_OLD);
@@ -432,7 +433,7 @@ public class CompactionRecoverTask {
         List<TsFileIdentifier> sourceFileIdentifiers) {
       try {
         File compactionModsFileFromOld =
-            new File(
+            fsFactory.getFile(
                 tsFileManager.getStorageGroupDir()
                     + File.separator
                     + IoTDBConstant.COMPACTION_MODIFICATION_FILE_NAME_FROM_OLD);
@@ -453,13 +454,14 @@ public class CompactionRecoverTask {
                           TsFileConstant.TSFILE_SUFFIX
                               + IoTDBConstant.CROSS_COMPACTION_TMP_FILE_SUFFIX_FROM_OLD,
                           TsFileConstant.TSFILE_SUFFIX);
-              targetFile = TsFileNameGenerator.increaseCrossCompactionCnt(new File(sourceFilePath));
-              FSFactoryProducer.getFSFactory().moveFile(tmpTargetFile, targetFile);
+              targetFile =
+                  TsFileNameGenerator.increaseCrossCompactionCnt(fsFactory.getFile(sourceFilePath));
+              fsFactory.moveFile(tmpTargetFile, targetFile);
             } else {
               // target file must exist
               File file =
                   TsFileNameGenerator.increaseCrossCompactionCnt(
-                      new File(
+                      fsFactory.getFile(
                           targetFileIdentifiers
                               .get(i)
                               .getFilePath()

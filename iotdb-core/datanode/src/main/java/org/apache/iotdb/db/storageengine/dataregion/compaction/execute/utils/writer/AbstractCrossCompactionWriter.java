@@ -44,7 +44,7 @@ public abstract class AbstractCrossCompactionWriter extends AbstractCompactionWr
   protected List<CompactionTsFileWriter> targetFileWriters = new ArrayList<>();
 
   // source tsfiles
-  private List<TsFileResource> seqTsFileResources;
+  protected List<TsFileResource> seqTsFileResources;
 
   // Each sub task has its corresponding seq file index.
   // The index of the array corresponds to subTaskId.
@@ -60,7 +60,7 @@ public abstract class AbstractCrossCompactionWriter extends AbstractCompactionWr
   protected final boolean[] isDeviceExistedInTargetFiles;
 
   // current chunk group header size
-  private int chunkGroupHeaderSize;
+  protected int chunkGroupHeaderSize;
 
   protected List<TsFileResource> targetResources;
 
@@ -213,7 +213,7 @@ public abstract class AbstractCrossCompactionWriter extends AbstractCompactionWr
     }
   }
 
-  private void checkIsDeviceExistAndGetDeviceEndTime() throws IOException {
+  protected void checkIsDeviceExistAndGetDeviceEndTime() throws IOException {
     int fileIndex = 0;
     while (fileIndex < seqTsFileResources.size()) {
       if (seqTsFileResources.get(fileIndex).getTimeIndexType() == 1) {

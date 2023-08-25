@@ -108,6 +108,31 @@ public class AuthorityChecker {
     return false;
   }
 
+  /**
+   * 2023-08-25 03:40:14,790 [pool-85-IoTDB-ClientRPC-Processor-1] ERROR
+   * o.a.i.d.a.AuthorityChecker:274 - Unrecognizable operator type (FLUSH) for AuthorityChecker.
+   * 2023-08-25 03:40:14,790 [pool-85-IoTDB-ClientRPC-Processor-1] ERROR
+   * o.a.i.d.a.AuthorityChecker:274 - Unrecognizable operator type (FLUSH) for AuthorityChecker.
+   * 2023-08-25 03:40:14,792 [pool-85-IoTDB-ClientRPC-Processor-1] WARN
+   * o.a.i.d.u.ErrorHandlingUtils:63 - Status code: EXECUTE_STATEMENT_ERROR(301), operation:
+   * checkAuthority failed java.lang.ArrayIndexOutOfBoundsException: Index -1 out of bounds for
+   * length 47 at
+   * org.apache.iotdb.db.auth.AuthorityChecker.checkAuthority(AuthorityChecker.java:120) at
+   * org.apache.iotdb.db.protocol.thrift.impl.ClientRPCServiceImpl.executeStatementInternal(ClientRPCServiceImpl.java:282)
+   * at
+   * org.apache.iotdb.db.protocol.thrift.impl.ClientRPCServiceImpl.executeStatementV2(ClientRPCServiceImpl.java:739)
+   * at
+   * org.apache.iotdb.service.rpc.thrift.IClientRPCService$Processor$executeStatementV2.getResult(IClientRPCService.java:3869)
+   * at
+   * org.apache.iotdb.service.rpc.thrift.IClientRPCService$Processor$executeStatementV2.getResult(IClientRPCService.java:3849)
+   * at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38) at
+   * org.apache.iotdb.db.protocol.thrift.ProcessorWithMetrics.process(ProcessorWithMetrics.java:64)
+   * at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:248) at
+   * java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136) at
+   * java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635) at
+   * java.base/java.lang.Thread.run(Thread.java:833)
+   */
+
   /** Check whether specific Session has the authorization to given plan. */
   public static TSStatus checkAuthority(Statement statement, IClientSession session) {
     long startTime = System.nanoTime();

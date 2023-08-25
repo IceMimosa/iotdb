@@ -26,6 +26,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.StatementType;
 import org.apache.iotdb.db.queryengine.plan.statement.StatementVisitor;
 import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResource;
 import org.apache.iotdb.tsfile.common.constant.TsFileConstant;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -46,7 +47,7 @@ public class LoadTsFileStatement extends Statement {
   private final List<TsFileResource> resources;
 
   public LoadTsFileStatement(String filePath) throws FileNotFoundException {
-    this.file = new File(filePath);
+    this.file = FSFactoryProducer.getFSFactory().getFile(filePath);
     this.databaseLevel = IoTDBDescriptor.getInstance().getConfig().getDefaultStorageGroupLevel();
     this.verifySchema = true;
     this.deleteAfterLoad = true;

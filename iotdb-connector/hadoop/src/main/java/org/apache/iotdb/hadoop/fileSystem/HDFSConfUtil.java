@@ -25,6 +25,7 @@ import org.apache.iotdb.tsfile.common.constant.TsFileConstant;
 import org.apache.iotdb.tsfile.fileSystem.FSType;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,9 @@ class HDFSConfUtil {
   private static TSFileConfig tsFileConfig = TSFileDescriptor.getInstance().getConfig();
   private static final Logger logger = LoggerFactory.getLogger(HDFSConfUtil.class);
 
+  public static final Configuration defaultConf = init(new Configuration());
+  public static FileSystem defaultFs = null;
+
   static Configuration setConf(Configuration conf) {
     boolean enableHDFS = false;
     for (FSType type : tsFileConfig.getTSFileStorageFs()) {
@@ -52,7 +56,11 @@ class HDFSConfUtil {
     if (!enableHDFS) {
       return conf;
     }
+    conf.addResource(defaultConf);
+    return conf;
+  }
 
+  private static Configuration init(Configuration conf) {
     try {
       conf.addResource(new File(tsFileConfig.getCoreSitePath()).toURI().toURL());
       conf.addResource(new File(tsFileConfig.getHdfsSitePath()).toURI().toURL());
@@ -90,6 +98,8 @@ class HDFSConfUtil {
             "dfs.client.failover.proxy.provider." + dfsNameservices,
             tsFileConfig.getDfsClientFailoverProxyProvider());
       }
+      // ha mode set back to default
+      conf.set("dfs.client.block.write.replace-datanode-on-failure.policy", "ALWAYS");
     }
 
     // Kerberos configuration
@@ -110,7 +120,11 @@ class HDFSConfUtil {
             e);
       }
     }
-
+    try {
+      defaultFs = FileSystem.get(conf);
+    } catch (IOException e) {
+      logger.error("Failed to create file system. ", e);
+    }
     return conf;
   }
 }

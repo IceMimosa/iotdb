@@ -18,6 +18,11 @@
     under the License.
 
 -->
+
+# [NIO使用指南](./README_NIO.md)
+
+---
+
 [English](./README.md) | [中文](./README_ZH.md)
 
 # IoTDB

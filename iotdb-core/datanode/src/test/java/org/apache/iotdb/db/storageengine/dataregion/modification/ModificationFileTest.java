@@ -234,7 +234,7 @@ public class ModificationFileTest {
       modsFile.close();
       modsSettleFile.close();
       new CompactionRecoverManager(null, null, null)
-          .recoverModSettleFile(new File(TestConstant.BASE_OUTPUT_PATH).toPath());
+          .recoverModSettleFile(new File(TestConstant.BASE_OUTPUT_PATH));
       Assert.assertTrue(modsFile.exists());
       Assert.assertFalse(modsSettleFile.exists());
     } catch (IOException e) {
@@ -262,7 +262,7 @@ public class ModificationFileTest {
               Long.MAX_VALUE));
       modsSettleFile.close();
       new CompactionRecoverManager(null, null, null)
-          .recoverModSettleFile(new File(TestConstant.BASE_OUTPUT_PATH).toPath());
+          .recoverModSettleFile(new File(TestConstant.BASE_OUTPUT_PATH));
       Assert.assertFalse(modsSettleFile.exists());
       Assert.assertTrue(new File(originModsFileName).exists());
     } catch (IOException e) {

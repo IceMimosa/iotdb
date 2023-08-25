@@ -45,8 +45,8 @@ import org.apache.iotdb.db.storageengine.dataregion.tsfile.generator.TsFileNameG
 import org.apache.iotdb.db.storageengine.rescon.memory.SystemInfo;
 import org.apache.iotdb.tsfile.common.conf.TSFileConfig;
 import org.apache.iotdb.tsfile.exception.write.TsFileNotCompleteException;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
 
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -148,11 +148,12 @@ public class InnerSpaceCompactionTask extends AbstractCompactionTask {
           TsFileNameGenerator.getInnerCompactionTargetFileResource(
               selectedTsFileResourceList, sequence);
       logFile =
-          new File(
-              dataDirectory
-                  + File.separator
-                  + targetTsFileResource.getTsFile().getName()
-                  + CompactionLogger.INNER_COMPACTION_LOG_NAME_SUFFIX);
+          FSFactoryProducer.getFSFactory()
+              .getFile(
+                  dataDirectory
+                      + File.separator
+                      + targetTsFileResource.getTsFile().getName()
+                      + CompactionLogger.INNER_COMPACTION_LOG_NAME_SUFFIX);
       try (CompactionLogger compactionLogger = new CompactionLogger(logFile)) {
         // Here is tmpTargetFile, which is xxx.target
         targetTsFileList = new ArrayList<>(Collections.singletonList(targetTsFileResource));
@@ -296,7 +297,7 @@ public class InnerSpaceCompactionTask extends AbstractCompactionTask {
             summary);
       }
       if (logFile.exists()) {
-        FileUtils.delete(logFile);
+        FSFactoryProducer.getFSFactory().deleteIfExists(logFile);
       }
     } catch (Exception e) {
       isSuccess = false;

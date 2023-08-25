@@ -34,7 +34,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -115,7 +114,7 @@ public class TsFileAndModSettleTool {
   }
 
   private static List<File> getAllFilesInOneDirBySuffix(String dirPath, String suffix) {
-    File dir = new File(dirPath);
+    File dir = FSFactoryProducer.getFSFactory().getFile(dirPath);
     if (!dir.isDirectory()) {
       logger.warn("It's not a directory path : {}", dirPath);
       return Collections.emptyList();
@@ -220,10 +219,9 @@ public class TsFileAndModSettleTool {
 
   public static void findFilesToBeRecovered() {
     if (FSFactoryProducer.getFSFactory().getFile(SettleLog.getSettleLogPath()).exists()) {
+
       try (BufferedReader settleLogReader =
-          new BufferedReader(
-              new FileReader(
-                  FSFactoryProducer.getFSFactory().getFile(SettleLog.getSettleLogPath())))) {
+          FSFactoryProducer.getFSFactory().getBufferedReader(SettleLog.getSettleLogPath())) {
         String line = null;
         while ((line = settleLogReader.readLine()) != null && !"".equals(line)) {
           String oldFilePath = line.split(SettleLog.COMMA_SEPERATOR)[0];
@@ -313,10 +311,11 @@ public class TsFileAndModSettleTool {
     oldTsFileResource.removeModFile();
 
     File newPartitionDir =
-        new File(
-            oldTsFileResource.getTsFile().getParent()
-                + File.separator
-                + oldTsFileResource.getTimePartition());
+        FSFactoryProducer.getFSFactory()
+            .getFile(
+                oldTsFileResource.getTsFile().getParent()
+                    + File.separator
+                    + oldTsFileResource.getTimePartition());
     if (newTsFileResources.isEmpty()) { // if the oldTsFile has no mods, it should not be deleted.
       if (oldTsFileResource.isDeleted()) {
         oldTsFileResource.remove();
@@ -332,10 +331,11 @@ public class TsFileAndModSettleTool {
     }
     for (TsFileResource newTsFileResource : newTsFileResources) {
       newPartitionDir =
-          new File(
-              oldTsFileResource.getTsFile().getParent()
-                  + File.separator
-                  + newTsFileResource.getTimePartition());
+          FSFactoryProducer.getFSFactory()
+              .getFile(
+                  oldTsFileResource.getTsFile().getParent()
+                      + File.separator
+                      + newTsFileResource.getTimePartition());
       // if old TsFile has been deleted by other threads, then delete its new TsFile.
       if (!isOldFileExisted) {
         newTsFileResource.remove();

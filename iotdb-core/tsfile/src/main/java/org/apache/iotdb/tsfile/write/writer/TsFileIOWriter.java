@@ -46,12 +46,10 @@ import org.apache.iotdb.tsfile.utils.PublicBAOS;
 import org.apache.iotdb.tsfile.utils.ReadWriteIOUtils;
 import org.apache.iotdb.tsfile.write.writer.tsmiterator.TSMIterator;
 
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayDeque;
@@ -107,7 +105,7 @@ public class TsFileIOWriter implements AutoCloseable {
   protected long maxMetadataSize;
   protected long currentChunkMetadataSize = 0L;
   protected File chunkMetadataTempFile;
-  protected LocalTsFileOutput tempOutput;
+  protected TsFileOutput tempOutput;
   protected volatile boolean hasChunkMetadataInDisk = false;
   // record the total num of path in order to make bloom filter
   protected int pathCount = 0;
@@ -156,7 +154,9 @@ public class TsFileIOWriter implements AutoCloseable {
     this(file);
     this.enableMemoryControl = enableMemoryControl;
     this.maxMetadataSize = maxMetadataSize;
-    chunkMetadataTempFile = new File(file.getAbsolutePath() + CHUNK_METADATA_TEMP_FILE_SUFFIX);
+    chunkMetadataTempFile =
+        FSFactoryProducer.getFSFactory()
+            .getFile(file.getAbsolutePath() + CHUNK_METADATA_TEMP_FILE_SUFFIX);
   }
 
   /**
@@ -173,6 +173,11 @@ public class TsFileIOWriter implements AutoCloseable {
   protected void startFile() throws IOException {
     out.write(MAGIC_STRING_BYTES);
     out.write(VERSION_NUMBER_BYTE);
+  }
+
+  public void startInitChunkGroup(String deviceId) {
+    this.currentChunkGroupDeviceId = deviceId;
+    chunkMetadataList = new ArrayList<>();
   }
 
   public int startChunkGroup(String deviceId) throws IOException {
@@ -339,9 +344,11 @@ public class TsFileIOWriter implements AutoCloseable {
       resourceLogger.debug("{} writer is closed.", file.getName());
     }
     if (file != null) {
-      File chunkMetadataFile = new File(file.getAbsolutePath() + CHUNK_METADATA_TEMP_FILE_SUFFIX);
+      File chunkMetadataFile =
+          FSFactoryProducer.getFSFactory()
+              .getFile(file.getAbsolutePath() + CHUNK_METADATA_TEMP_FILE_SUFFIX);
       if (chunkMetadataFile.exists()) {
-        FileUtils.delete(chunkMetadataFile);
+        FSFactoryProducer.getFSFactory().deleteIfExists(chunkMetadataFile);
       }
     }
     canWrite = false;
@@ -665,7 +672,9 @@ public class TsFileIOWriter implements AutoCloseable {
         TSMIterator.sortChunkMetadata(
             chunkGroupMetadataList, currentChunkGroupDeviceId, chunkMetadataList);
     if (tempOutput == null) {
-      tempOutput = new LocalTsFileOutput(new FileOutputStream(chunkMetadataTempFile));
+      tempOutput =
+          FSFactoryProducer.getFileOutputFactory()
+              .getTsFileOutput(chunkMetadataTempFile.getPath(), true);
     }
     hasChunkMetadataInDisk = true;
     for (Pair<Path, List<IChunkMetadata>> pair : sortedChunkMetadataList) {
@@ -717,7 +726,7 @@ public class TsFileIOWriter implements AutoCloseable {
       totalSize += chunkMetadata.serializeTo(buffer, true);
     }
     writtenSize += ReadWriteIOUtils.write(totalSize, tempOutput.wrapAsStream());
-    buffer.writeTo(tempOutput);
+    buffer.writeTo(tempOutput.wrapAsStream());
     writtenSize += buffer.size();
     return writtenSize;
   }

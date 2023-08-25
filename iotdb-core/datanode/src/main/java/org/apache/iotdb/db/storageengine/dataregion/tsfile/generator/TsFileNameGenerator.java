@@ -130,7 +130,7 @@ public class TsFileNameGenerator {
     TsFileName tsFileName = getTsFileName(tsFileResource.getTsFile().getName());
     tsFileName.setCrossCompactionCnt(tsFileName.getCrossCompactionCnt() + 1);
     tsFileResource.setFile(
-        new File(
+        fsFactory.getFile(
             path,
             tsFileName.time
                 + FILE_NAME_SEPARATOR
@@ -151,7 +151,7 @@ public class TsFileNameGenerator {
     TsFileName tsFileName = getTsFileName(tsFileResource.getTsFile().getName());
     tsFileName.setInnerCompactionCnt(tsFileName.getInnerCompactionCnt() + 1);
     tsFileResource.setFile(
-        new File(
+        fsFactory.getFile(
             path,
             tsFileName.time
                 + FILE_NAME_SEPARATOR
@@ -168,7 +168,7 @@ public class TsFileNameGenerator {
     String path = tsFile.getParent();
     TsFileName tsFileName = getTsFileName(tsFile.getName());
     tsFileName.setCrossCompactionCnt(tsFileName.getCrossCompactionCnt() + 1);
-    return new File(
+    return fsFactory.getFile(
         path,
         tsFileName.time
             + FILE_NAME_SEPARATOR
@@ -197,7 +197,7 @@ public class TsFileNameGenerator {
       // set target resource to COMPACTING until the end of this task
       targetFileResources.add(
           new TsFileResource(
-              new File(
+              fsFactory.getFile(
                   resource.getTsFile().getParent(),
                   tsFileName.time
                       + FILE_NAME_SEPARATOR
@@ -241,7 +241,7 @@ public class TsFileNameGenerator {
     // set target resource to COMPACTING until the end of this task
     return sequence
         ? new TsFileResource(
-            new File(
+            fsFactory.getFile(
                 tsFileResources.get(0).getTsFile().getParent(),
                 minTime
                     + FILE_NAME_SEPARATOR
@@ -253,7 +253,7 @@ public class TsFileNameGenerator {
                     + IoTDBConstant.INNER_COMPACTION_TMP_FILE_SUFFIX),
             TsFileResourceStatus.COMPACTING)
         : new TsFileResource(
-            new File(
+            fsFactory.getFile(
                 tsFileResources.get(0).getTsFile().getParent(),
                 maxTime
                     + FILE_NAME_SEPARATOR

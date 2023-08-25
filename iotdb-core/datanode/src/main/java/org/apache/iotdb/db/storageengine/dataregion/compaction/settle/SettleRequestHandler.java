@@ -38,6 +38,7 @@ import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResourceStatus;
 import org.apache.iotdb.db.storageengine.dataregion.tsfile.generator.TsFileNameGenerator;
 import org.apache.iotdb.rpc.RpcUtils;
 import org.apache.iotdb.rpc.TSStatusCode;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
 import org.apache.iotdb.tsfile.utils.TsFileUtils;
 
 import org.slf4j.Logger;
@@ -124,12 +125,13 @@ public class SettleRequestHandler {
       TSStatus validationResult;
 
       for (String path : paths) {
-        File currentTsFile = new File(path);
+        File currentTsFile = FSFactoryProducer.getFSFactory().getFile(path);
         if (!currentTsFile.exists()) {
           return RpcUtils.getStatus(
               TSStatusCode.PATH_NOT_EXIST, "The specified file does not exist in " + path);
         }
-        File modsFile = new File(path + ModificationFile.FILE_SUFFIX);
+        File modsFile =
+            FSFactoryProducer.getFSFactory().getFile(path + ModificationFile.FILE_SUFFIX);
         hasModsFiles |= modsFile.exists();
 
         ConsistentSettleInfo currentInfo = calculateConsistentInfo(currentTsFile);
