@@ -24,8 +24,9 @@ import org.apache.iotdb.tsfile.file.metadata.ChunkMetadata;
 import org.apache.iotdb.tsfile.file.metadata.IChunkMetadata;
 import org.apache.iotdb.tsfile.file.metadata.TimeseriesMetadata;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
 import org.apache.iotdb.tsfile.read.common.Path;
-import org.apache.iotdb.tsfile.read.reader.LocalTsFileInput;
+import org.apache.iotdb.tsfile.read.reader.TsFileInput;
 import org.apache.iotdb.tsfile.utils.Pair;
 import org.apache.iotdb.tsfile.utils.ReadWriteIOUtils;
 
@@ -50,7 +51,7 @@ public class DiskTSMIterator extends TSMIterator {
 
   private LinkedList<Long> endPosForEachDevice;
   private File cmtFile;
-  private LocalTsFileInput input;
+  private TsFileInput input;
   private long fileLength = 0;
   private long currentPos = 0;
   private long nextEndPosForDevice = 0;
@@ -65,7 +66,7 @@ public class DiskTSMIterator extends TSMIterator {
     super(chunkGroupMetadataList);
     this.cmtFile = cmtFile;
     this.endPosForEachDevice = endPosForEachDevice;
-    this.input = new LocalTsFileInput(cmtFile.toPath());
+    this.input = FSFactoryProducer.getFileInputFactory().getTsFileInput(cmtFile.getPath());
     this.fileLength = cmtFile.length();
     this.nextEndPosForDevice = endPosForEachDevice.removeFirst();
   }

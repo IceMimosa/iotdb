@@ -266,8 +266,8 @@ public class OpenFileNumUtil {
 
   public enum OpenFileNumStatistics {
     TOTAL_OPEN_FILE_NUM(null),
-    SEQUENCE_FILE_OPEN_NUM(tierManager.getAllLocalSequenceFileFolders()),
-    UNSEQUENCE_FILE_OPEN_NUM(tierManager.getAllLocalUnSequenceFileFolders()),
+    SEQUENCE_FILE_OPEN_NUM(tierManager.getAllSequenceFileFolders()),
+    UNSEQUENCE_FILE_OPEN_NUM(tierManager.getAllUnSequenceFileFolders()),
     WAL_OPEN_FILE_NUM(Arrays.asList(commonConfig.getWalDirs())),
     DIGEST_OPEN_FILE_NUM(Collections.singletonList(config.getSystemDir())),
     SOCKET_OPEN_FILE_NUM(null);

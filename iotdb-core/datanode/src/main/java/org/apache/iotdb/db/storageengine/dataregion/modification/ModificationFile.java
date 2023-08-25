@@ -95,7 +95,7 @@ public class ModificationFile implements AutoCloseable {
    */
   public void write(Modification mod) throws IOException {
     synchronized (this) {
-      if (needVerify && new File(filePath).exists()) {
+      if (needVerify && FSFactoryProducer.getFSFactory().getFile(filePath).exists()) {
         writer.mayTruncateLastLine();
         needVerify = false;
       }
@@ -140,7 +140,7 @@ public class ModificationFile implements AutoCloseable {
   }
 
   public boolean exists() {
-    return new File(filePath).exists();
+    return FSFactoryProducer.getFSFactory().getFile(filePath).exists();
   }
 
   /**
@@ -182,7 +182,7 @@ public class ModificationFile implements AutoCloseable {
   }
 
   public long getSize() {
-    File file = new File(filePath);
+    File file = FSFactoryProducer.getFSFactory().getFile(filePath);
     if (file.exists()) {
       return file.length();
     } else {
@@ -215,7 +215,10 @@ public class ModificationFile implements AutoCloseable {
         // remove origin mods file
         this.remove();
         // rename new mods file to origin name
-        Files.move(new File(newModsFileName).toPath(), new File(filePath).toPath());
+        FSFactoryProducer.getFSFactory()
+            .moveFile(
+                FSFactoryProducer.getFSFactory().getFile(newModsFileName),
+                FSFactoryProducer.getFSFactory().getFile(filePath));
         logger.info("{} settle successful", filePath);
 
         if (getSize() > COMPACT_THRESHOLD) {

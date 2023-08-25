@@ -29,6 +29,7 @@ import org.apache.iotdb.db.queryengine.plan.planner.plan.node.PlanNodeType;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.WritePlanNode;
 import org.apache.iotdb.tsfile.exception.NotImplementedException;
 import org.apache.iotdb.tsfile.exception.write.PageException;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
 import org.apache.iotdb.tsfile.utils.ReadWriteIOUtils;
 
 import org.slf4j.Logger;
@@ -150,7 +151,7 @@ public class LoadTsFilePieceNode extends WritePlanNode {
     InputStream stream = new ByteArrayInputStream(buffer.array());
     try {
       ReadWriteIOUtils.readShort(stream); // read PlanNodeType
-      File tsFile = new File(ReadWriteIOUtils.readString(stream));
+      File tsFile = FSFactoryProducer.getFSFactory().getFile(ReadWriteIOUtils.readString(stream));
       LoadTsFilePieceNode pieceNode = new LoadTsFilePieceNode(new PlanNodeId(""), tsFile);
       int tsFileDataSize = ReadWriteIOUtils.readInt(stream);
       for (int i = 0; i < tsFileDataSize; i++) {

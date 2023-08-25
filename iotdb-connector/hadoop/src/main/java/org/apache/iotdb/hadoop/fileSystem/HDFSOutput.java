@@ -21,9 +21,12 @@ package org.apache.iotdb.hadoop.fileSystem;
 import org.apache.iotdb.tsfile.write.writer.TsFileOutput;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -34,13 +37,14 @@ import java.nio.ByteBuffer;
  * {@link}TsFileOutput
  */
 public class HDFSOutput implements TsFileOutput {
+  private static final Logger logger = LoggerFactory.getLogger(HDFSOutput.class);
 
   private FSDataOutputStream fsDataOutputStream;
   private FileSystem fs;
   private Path path;
 
   public HDFSOutput(String filePath, boolean overwrite) throws IOException {
-    this(filePath, new Configuration(), overwrite);
+    this(filePath, HDFSConfUtil.defaultConf, overwrite);
     path = new Path(filePath);
   }
 
@@ -52,7 +56,16 @@ public class HDFSOutput implements TsFileOutput {
 
   public HDFSOutput(Path path, Configuration configuration, boolean overwrite) throws IOException {
     fs = path.getFileSystem(HDFSConfUtil.setConf(configuration));
-    fsDataOutputStream = fs.exists(path) ? fs.append(path) : fs.create(path, overwrite);
+    if (fs.exists(path)) {
+      boolean recovered = HDFSUtils.recoverFileLease(fs, path, 10);
+      if (!recovered) {
+        Path recoverPath = new Path(path.getParent(), path.getName() + ".recover");
+        recoverFileByCopy(path, recoverPath, Long.MAX_VALUE);
+      }
+      fsDataOutputStream = fs.append(path);
+    } else {
+      fsDataOutputStream = fs.create(path, overwrite);
+    }
     this.path = path;
   }
 
@@ -67,8 +80,8 @@ public class HDFSOutput implements TsFileOutput {
   }
 
   @Override
-  public void write(ByteBuffer b) {
-    throw new UnsupportedOperationException("Unsupported operation.");
+  public void write(ByteBuffer b) throws IOException {
+    fsDataOutputStream.write(b.array()); // direct memory ?
   }
 
   @Override
@@ -94,11 +107,58 @@ public class HDFSOutput implements TsFileOutput {
   @Override
   public void truncate(long size) throws IOException {
     if (fs.exists(path)) {
-      fsDataOutputStream.close();
+      try {
+        fsDataOutputStream.close();
+      } catch (Throwable e) {
+        // ignore
+      }
     }
-    fs.truncate(path, size);
+    boolean truncated = false;
+    try {
+      truncated = fs.truncate(path, size);
+    } catch (Throwable e) {
+      logger.warn("Unkonwn error when truncate", e);
+    }
+    if (!truncated) {
+      // clients should wait for it to complete before proceeding with further file updates.
+      // boolean recovered = HDFSUtils.recoverFileLease(fs, path, 100);
+      boolean recovered = HDFSUtils.recoverFileLease(fs, path, 10);
+      if (!recovered) {
+        Path recoverPath = new Path(path.getParent(), path.getName() + ".recover");
+        recoverFileByCopy(path, recoverPath, size);
+      }
+    }
     if (fs.exists(path)) {
       fsDataOutputStream = fs.append(path);
     }
+  }
+
+  private void recoverFileByCopy(Path src, Path dest, long size) throws IOException {
+    try (FSDataInputStream inputStream = fs.open(src);
+        FSDataOutputStream outputStream = fs.create(dest)) {
+      long count = 0;
+      int n;
+      byte[] buffer = new byte[8192];
+      while (count < size && -1 != (n = inputStream.read(buffer))) {
+        count += n;
+        if (count > size) {
+          outputStream.write(buffer, 0, (int) (size + n - count));
+        } else {
+          outputStream.write(buffer, 0, n);
+        }
+      }
+    } catch (Throwable e) {
+      logger.warn("Unkonwn error", e);
+      throw e;
+    }
+    logger.warn(
+        "Use copy to recover file with truncate size {} from {}[{}] to {}[{}]",
+        size,
+        src,
+        fs.getFileStatus(src).getLen(),
+        dest,
+        fs.getFileStatus(dest).getLen());
+    fs.delete(src, true);
+    fs.rename(dest, src);
   }
 }

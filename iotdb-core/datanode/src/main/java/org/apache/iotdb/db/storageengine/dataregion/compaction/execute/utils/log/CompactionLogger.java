@@ -20,10 +20,10 @@
 package org.apache.iotdb.db.storageengine.dataregion.compaction.execute.utils.log;
 
 import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResource;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
 
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.List;
 
@@ -51,7 +51,7 @@ public class CompactionLogger implements AutoCloseable {
   private BufferedWriter logStream;
 
   public CompactionLogger(File logFile) throws IOException {
-    logStream = new BufferedWriter(new FileWriter(logFile, true));
+    logStream = FSFactoryProducer.getFSFactory().getBufferedWriter(logFile.getPath(), true);
   }
 
   @Override
@@ -85,7 +85,7 @@ public class CompactionLogger implements AutoCloseable {
   public static File[] findCompactionLogs(boolean isInnerSpace, String directory) {
     String compactionLogSuffix =
         isInnerSpace ? INNER_COMPACTION_LOG_NAME_SUFFIX : CROSS_COMPACTION_LOG_NAME_SUFFIX;
-    File timePartitionDir = new File(directory);
+    File timePartitionDir = FSFactoryProducer.getFSFactory().getFile(directory);
     if (timePartitionDir.exists()) {
       return timePartitionDir.listFiles((dir, name) -> name.endsWith(compactionLogSuffix));
     } else {

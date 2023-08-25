@@ -32,6 +32,8 @@ import org.apache.iotdb.db.storageengine.dataregion.modification.ModificationFil
 import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResource;
 import org.apache.iotdb.db.utils.TimePartitionUtils;
 import org.apache.iotdb.tsfile.exception.NotImplementedException;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
+import org.apache.iotdb.tsfile.fileSystem.fsFactory.FSFactory;
 import org.apache.iotdb.tsfile.utils.Pair;
 
 import org.slf4j.Logger;
@@ -41,7 +43,6 @@ import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -59,6 +60,8 @@ public class LoadSingleTsFileNode extends WritePlanNode {
   private boolean deleteAfterLoad;
 
   private TRegionReplicaSet localRegionReplicaSet;
+
+  private FSFactory fsFactory = FSFactoryProducer.getFSFactory();
 
   public LoadSingleTsFileNode(PlanNodeId id) {
     super(id);
@@ -204,11 +207,11 @@ public class LoadSingleTsFileNode extends WritePlanNode {
   public void clean() {
     try {
       if (deleteAfterLoad) {
-        Files.deleteIfExists(tsFile.toPath());
-        Files.deleteIfExists(
-            new File(tsFile.getAbsolutePath() + TsFileResource.RESOURCE_SUFFIX).toPath());
-        Files.deleteIfExists(
-            new File(tsFile.getAbsolutePath() + ModificationFile.FILE_SUFFIX).toPath());
+        fsFactory.deleteIfExists(tsFile);
+        fsFactory.deleteIfExists(
+            fsFactory.getFile(tsFile.getAbsolutePath() + TsFileResource.RESOURCE_SUFFIX));
+        fsFactory.deleteIfExists(
+            fsFactory.getFile(tsFile.getAbsolutePath() + ModificationFile.FILE_SUFFIX));
       }
     } catch (IOException e) {
       logger.warn(String.format("Delete After Loading %s error.", tsFile), e);

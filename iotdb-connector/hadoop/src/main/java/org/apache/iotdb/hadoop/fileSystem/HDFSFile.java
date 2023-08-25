@@ -19,11 +19,11 @@
 
 package org.apache.iotdb.hadoop.fileSystem;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +45,7 @@ import java.io.OutputStreamWriter;
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class HDFSFile extends File {
@@ -74,15 +75,17 @@ public class HDFSFile extends File {
   }
 
   public HDFSFile(URI uri) {
-    super(uri);
+    super(uri.toString());
     hdfsPath = new Path(uri);
     setConfAndGetFS();
   }
 
   private void setConfAndGetFS() {
-    Configuration conf = HDFSConfUtil.setConf(new Configuration());
     try {
-      fs = hdfsPath.getFileSystem(conf);
+      fs = HDFSConfUtil.defaultFs;
+      if (fs == null) {
+        fs = hdfsPath.getFileSystem(HDFSConfUtil.defaultConf);
+      }
     } catch (IOException e) {
       logger.error("Fail to get HDFS! ", e);
     }
@@ -225,7 +228,9 @@ public class HDFSFile extends File {
 
   public BufferedReader getBufferedReader(String filePath) {
     try {
-      return new BufferedReader(new InputStreamReader(fs.open(new Path(filePath))));
+      Path p = new Path(filePath);
+      HDFSUtils.recoverFileLease(fs, p);
+      return new BufferedReader(new InputStreamReader(fs.open(p)));
     } catch (IOException e) {
       logger.error("Failed to get buffered reader for {}. ", filePath, e);
       return null;
@@ -234,7 +239,28 @@ public class HDFSFile extends File {
 
   public BufferedWriter getBufferedWriter(String filePath) {
     try {
-      return new BufferedWriter(new OutputStreamWriter(fs.create(new Path(filePath))));
+      Path p = new Path(filePath);
+      HDFSUtils.recoverFileLease(fs, p);
+      return new BufferedWriter(new OutputStreamWriter(fs.create(p)));
+    } catch (IOException e) {
+      logger.error("Failed to get buffered writer for {}. ", filePath, e);
+      return null;
+    }
+  }
+
+  public BufferedWriter getBufferedWriter(String filePath, boolean append) {
+    try {
+      Path p = new Path(filePath);
+      if (append) {
+        if (!fs.exists(p)) {
+          fs.create(p);
+        }
+        HDFSUtils.recoverFileLease(fs, p);
+        return new BufferedWriter(new OutputStreamWriter(fs.append(p)));
+      }
+      // else create file
+      HDFSUtils.recoverFileLease(fs, p);
+      return new BufferedWriter(new OutputStreamWriter(fs.create(p)));
     } catch (IOException e) {
       logger.error("Failed to get buffered writer for {}. ", filePath, e);
       return null;
@@ -243,7 +269,9 @@ public class HDFSFile extends File {
 
   public BufferedInputStream getBufferedInputStream(String filePath) {
     try {
-      return new BufferedInputStream(fs.open(new Path(filePath)));
+      Path p = new Path(filePath);
+      HDFSUtils.recoverFileLease(fs, p);
+      return new BufferedInputStream(fs.open(p));
     } catch (IOException e) {
       logger.error("Failed to get buffered input stream for {}. ", filePath, e);
       return null;
@@ -252,7 +280,9 @@ public class HDFSFile extends File {
 
   public BufferedOutputStream getBufferedOutputStream(String filePath) {
     try {
-      return new BufferedOutputStream(fs.create(new Path(filePath)));
+      Path p = new Path(filePath);
+      HDFSUtils.recoverFileLease(fs, p);
+      return new BufferedOutputStream(fs.create(p));
     } catch (IOException e) {
       logger.error("Failed to get buffered output stream for {}. ", filePath, e);
       return null;
@@ -288,15 +318,15 @@ public class HDFSFile extends File {
     return files;
   }
 
-  private void copyToLocal(File destFile) throws IOException {
+  public void copyToLocal(File destFile) throws IOException {
     fs.copyToLocalFile(hdfsPath, new Path(destFile.getPath()));
   }
 
-  private void copyFromLocal(File srcFile) throws IOException {
+  public void copyFromLocal(File srcFile) throws IOException {
     fs.copyFromLocalFile(new Path(srcFile.getPath()), hdfsPath);
   }
 
-  private void copyTo(File destFile) throws IOException {
+  public void copyTo(File destFile) throws IOException {
     try (InputStream in = fs.open(hdfsPath);
         OutputStream out = fs.create(((HDFSFile) destFile).hdfsPath, true)) {
       IOUtils.copyBytes(in, out, 4096);
@@ -310,146 +340,224 @@ public class HDFSFile extends File {
 
   @Override
   public String getParent() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return hdfsPath.getParent().toString();
   }
 
   @Override
   public boolean isAbsolute() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return hdfsPath.isAbsolute();
   }
 
   @Override
   public File[] listFiles(FileFilter filter) {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      return Arrays.stream(
+              fs.listStatus(hdfsPath, path -> filter.accept(new HDFSFile(path.toUri()))))
+          .map(f -> new HDFSFile(f.getPath().toUri()))
+          .toArray(File[]::new);
+    } catch (IOException e) {
+      logger.error("Fail to list of {}. ", hdfsPath.toUri(), e);
+      return null;
+    }
   }
 
   @Override
   public String getCanonicalPath() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return hdfsPath.toString();
   }
 
   @Override
   public File getCanonicalFile() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return this;
   }
 
   @Override
   public URL toURL() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      return hdfsPath.toUri().toURL();
+    } catch (IOException e) {
+      logger.error("Fail to get URL of {}. ", hdfsPath.toUri(), e);
+      return null;
+    }
   }
 
   @Override
   public URI toURI() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return hdfsPath.toUri();
   }
 
   @Override
   public boolean canRead() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return true;
   }
 
   @Override
   public boolean canWrite() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return true;
   }
 
   @Override
   public boolean isFile() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      return fs.getFileStatus(hdfsPath).isFile();
+    } catch (IOException e) {
+      logger.error("Fail to get is file of {}. ", hdfsPath.toUri(), e);
+      return false;
+    }
   }
 
   @Override
   public boolean isHidden() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return hdfsPath.getName().startsWith(".");
   }
 
   @Override
   public long lastModified() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      return fs.getFileStatus(hdfsPath).getModificationTime();
+    } catch (IOException e) {
+      logger.error("Fail to delete on exit of {}. ", hdfsPath.toUri(), e);
+      return 0L;
+    }
   }
 
   @Override
   public void deleteOnExit() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      fs.deleteOnExit(hdfsPath);
+    } catch (IOException e) {
+      logger.error("Fail to delete on exit of {}. ", hdfsPath.toUri(), e);
+    }
   }
 
   @Override
   public String[] list() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      return Arrays.stream(fs.listStatus(hdfsPath))
+          .map(f -> f.getPath().toString())
+          .toArray(String[]::new);
+    } catch (IOException e) {
+      logger.error("Fail to list of {}. ", hdfsPath.toUri(), e);
+      return null;
+    }
   }
 
   @Override
   public String[] list(FilenameFilter filter) {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      return Arrays.stream(
+              fs.listStatus(
+                  hdfsPath, path -> filter.accept(new HDFSFile(path.toUri()), path.getName())))
+          .map(f -> f.getPath().toString())
+          .toArray(String[]::new);
+    } catch (IOException e) {
+      logger.error("Fail to list of {}. ", hdfsPath.toUri(), e);
+      return null;
+    }
   }
 
   @Override
   public File[] listFiles(FilenameFilter filter) {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      return Arrays.stream(
+              fs.listStatus(
+                  hdfsPath, path -> filter.accept(new HDFSFile(path.toUri()), path.getName())))
+          .map(f -> new HDFSFile(f.getPath().toUri()))
+          .toArray(File[]::new);
+    } catch (IOException e) {
+      logger.error("Fail to listFiles of {}. ", hdfsPath.toUri(), e);
+      return null;
+    }
   }
 
   @Override
   public boolean mkdir() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      return fs.mkdirs(hdfsPath);
+    } catch (IOException e) {
+      logger.error("Fail to mkdir of {}. ", hdfsPath.toUri(), e);
+      return false;
+    }
   }
 
   @Override
   public boolean setLastModified(long time) {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      fs.setTimes(hdfsPath, time, fs.getFileStatus(hdfsPath).getAccessTime());
+      return true;
+    } catch (IOException e) {
+      logger.error("Fail to set last modified of {}. ", hdfsPath.toUri(), e);
+      return false;
+    }
   }
 
   @Override
   public boolean setReadOnly() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return false;
   }
 
   @Override
   public boolean setWritable(boolean writable, boolean ownerOnly) {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return false;
   }
 
   @Override
   public boolean setWritable(boolean writable) {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return false;
   }
 
   @Override
   public boolean setReadable(boolean readable, boolean ownerOnly) {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return false;
   }
 
   @Override
   public boolean setReadable(boolean readable) {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return false;
   }
 
   @Override
   public boolean setExecutable(boolean executable, boolean ownerOnly) {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return false;
   }
 
   @Override
   public boolean setExecutable(boolean executable) {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return false;
   }
 
   @Override
   public boolean canExecute() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      return fs.getFileStatus(hdfsPath).getPermission().getUserAction().implies(FsAction.EXECUTE);
+    } catch (IOException e) {
+      logger.error("Fail to get can execute of {}. ", hdfsPath.toUri(), e);
+      return false;
+    }
   }
 
   @Override
   public long getTotalSpace() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      return fs.getStatus().getCapacity();
+    } catch (IOException e) {
+      logger.error("Fail to get total space of {}. ", hdfsPath.toUri(), e);
+      return 0L;
+    }
   }
 
   @Override
   public long getUsableSpace() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    try {
+      return fs.getStatus().getUsed();
+    } catch (IOException e) {
+      logger.error("Fail to get usable space of {}. ", hdfsPath.toUri(), e);
+      return 0L;
+    }
   }
 
   @Override
   public java.nio.file.Path toPath() {
-    throw new UnsupportedOperationException(UNSUPPORT_OPERATION);
+    return java.nio.file.Paths.get(hdfsPath.toUri());
   }
 }

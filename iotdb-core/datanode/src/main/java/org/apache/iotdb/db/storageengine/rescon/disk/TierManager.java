@@ -220,6 +220,9 @@ public class TierManager {
     if (!file.exists()) {
       return getTiersNum() - 1;
     }
+    if (!FSUtils.isLocal(file)) {
+      return getTiersNum() - 1;
+    }
     Path filePath;
     try {
       filePath = file.getCanonicalFile().toPath();
@@ -256,7 +259,25 @@ public class TierManager {
       Set<FileStore> tierFileStores = new HashSet<>();
       for (String dir : tierDirs[tierLevel]) {
         if (!FSUtils.isLocal(dir)) {
-          tierDiskSpace[tierLevel] = Long.MAX_VALUE;
+          if (FSUtils.getFSType(dir) == FSType.HDFS) {
+            try {
+              File f = FSFactoryProducer.getFSFactory().getFile(dir);
+              switch (type) {
+                case TOTAL:
+                  tierDiskSpace[tierLevel] += f.getTotalSpace();
+                  break;
+                case USABLE:
+                  tierDiskSpace[tierLevel] += f.getUsableSpace();
+                  break;
+                default:
+                  break;
+              }
+            } catch (Exception e) {
+              logger.error("Failed to statistic the size of {}, because", dir, e);
+            }
+          } else {
+            tierDiskSpace[tierLevel] = Long.MAX_VALUE;
+          }
           break;
         }
         // get the FileStore of each local dir

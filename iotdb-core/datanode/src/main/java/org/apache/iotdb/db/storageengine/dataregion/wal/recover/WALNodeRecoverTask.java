@@ -36,6 +36,7 @@ import org.apache.iotdb.db.storageengine.dataregion.wal.recover.file.UnsealedTsF
 import org.apache.iotdb.db.storageengine.dataregion.wal.utils.CheckpointFileUtils;
 import org.apache.iotdb.db.storageengine.dataregion.wal.utils.WALFileStatus;
 import org.apache.iotdb.db.storageengine.dataregion.wal.utils.WALFileUtils;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -198,7 +199,8 @@ public class WALNodeRecoverTask implements Runnable {
       firstValidVersionId = Math.min(firstValidVersionId, memTableInfo.getFirstFileVersionId());
 
       UnsealedTsFileRecoverPerformer recoverPerformer =
-          walRecoverManger.removeRecoverPerformer(new File(memTableInfo.getTsFilePath()));
+          walRecoverManger.removeRecoverPerformer(
+              FSFactoryProducer.getFSFactory().getFile(memTableInfo.getTsFilePath()));
       if (recoverPerformer != null) {
         memTableId2RecoverPerformer.put(memTableInfo.getMemTableId(), recoverPerformer);
       }

@@ -23,11 +23,11 @@ import org.apache.iotdb.db.exception.DataRegionException;
 import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResource;
 import org.apache.iotdb.db.utils.FileLoaderUtils;
 import org.apache.iotdb.tsfile.exception.NotCompatibleTsFileException;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
 import org.apache.iotdb.tsfile.read.TsFileSequenceReader;
 import org.apache.iotdb.tsfile.write.writer.RestorableTsFileIOWriter;
 import org.apache.iotdb.tsfile.write.writer.TsFileIOWriter;
 
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,10 +60,11 @@ public abstract class AbstractTsFileRecoverPerformer implements Closeable {
   protected void recoverWithWriter() throws DataRegionException, IOException {
     File tsFile = tsFileResource.getTsFile();
     File chunkMetadataTempFile =
-        new File(tsFile.getAbsolutePath() + TsFileIOWriter.CHUNK_METADATA_TEMP_FILE_SUFFIX);
+        FSFactoryProducer.getFSFactory()
+            .getFile(tsFile.getAbsolutePath() + TsFileIOWriter.CHUNK_METADATA_TEMP_FILE_SUFFIX);
     if (chunkMetadataTempFile.exists()) {
       // delete chunk metadata temp file
-      FileUtils.delete(chunkMetadataTempFile);
+      FSFactoryProducer.getFSFactory().deleteIfExists(chunkMetadataTempFile);
     }
 
     if (tsFileResource.resourceFileExists()) {

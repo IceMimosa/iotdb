@@ -25,6 +25,7 @@ import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.db.storageengine.dataregion.modification.Deletion;
 import org.apache.iotdb.db.storageengine.dataregion.modification.Modification;
 import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
+import org.apache.iotdb.tsfile.write.writer.TsFileOutput;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,8 +34,6 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
@@ -85,8 +84,22 @@ public class LocalTextModificationAccessor
     File file = FSFactoryProducer.getFSFactory().getFile(filePath);
     final BufferedReader reader;
     try {
-      reader = new BufferedReader(new FileReader(file));
-    } catch (FileNotFoundException e) {
+      if (!file.exists()) {
+        // return empty iterator
+        return new Iterator<Modification>() {
+          @Override
+          public boolean hasNext() {
+            return false;
+          }
+
+          @Override
+          public Modification next() {
+            throw new NoSuchElementException();
+          }
+        };
+      }
+      reader = FSFactoryProducer.getFSFactory().getBufferedReader(filePath);
+    } catch (Exception e) {
       logger.debug(NO_MODIFICATION_MSG, file);
 
       // return empty iterator
@@ -188,15 +201,24 @@ public class LocalTextModificationAccessor
 
   @Override
   public void truncate(long size) {
-    try (FileOutputStream outputStream =
-        new FileOutputStream(FSFactoryProducer.getFSFactory().getFile(filePath), true)) {
-      outputStream.getChannel().truncate(size);
+    TsFileOutput tsFileOutput = null;
+    try {
+      tsFileOutput = FSFactoryProducer.getFileOutputFactory().getTsFileOutput(filePath, true);
+      tsFileOutput.truncate(size);
       logger.warn("The modifications[{}] will be truncated to size {}.", filePath, size);
     } catch (FileNotFoundException e) {
       logger.debug(NO_MODIFICATION_MSG, filePath);
     } catch (IOException e) {
       logger.error(
           "An error occurred when truncating modifications[{}] to size {}.", filePath, size, e);
+    } finally {
+      if (tsFileOutput != null) {
+        try {
+          tsFileOutput.close();
+        } catch (Exception e) {
+          // ignore
+        }
+      }
     }
   }
 

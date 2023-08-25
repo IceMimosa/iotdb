@@ -22,8 +22,6 @@ package org.apache.iotdb.db.queryengine.execution.load;
 import org.apache.iotdb.common.rpc.thrift.TTimePartitionSlot;
 import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.commons.conf.IoTDBConstant;
-import org.apache.iotdb.commons.file.SystemFileFactory;
-import org.apache.iotdb.commons.utils.FileUtils;
 import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.exception.LoadFileException;
@@ -34,6 +32,8 @@ import org.apache.iotdb.db.storageengine.dataregion.DataRegion;
 import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResource;
 import org.apache.iotdb.db.utils.FileLoaderUtils;
 import org.apache.iotdb.tsfile.common.constant.TsFileConstant;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
+import org.apache.iotdb.tsfile.fileSystem.fsFactory.FSFactory;
 import org.apache.iotdb.tsfile.write.writer.TsFileIOWriter;
 
 import org.slf4j.Logger;
@@ -42,8 +42,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.DirectoryNotEmptyException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -68,6 +66,8 @@ public class LoadTsFileManager {
       "%s TsFileWriterManager has been closed.";
   private static final String MESSAGE_DELETE_FAIL = "failed to delete {}.";
 
+  private static final FSFactory fsFactory = FSFactoryProducer.getFSFactory();
+
   private final File loadDir;
 
   private final Map<String, TsFileWriterManager> uuid2WriterManager;
@@ -76,7 +76,7 @@ public class LoadTsFileManager {
   private final Map<String, ScheduledFuture<?>> uuid2Future;
 
   public LoadTsFileManager() {
-    this.loadDir = SystemFileFactory.INSTANCE.getFile(CONFIG.getLoadTsFileDir());
+    this.loadDir = fsFactory.getFile(CONFIG.getLoadTsFileDir());
     this.uuid2WriterManager = new ConcurrentHashMap<>();
     this.cleanupExecutors =
         IoTDBThreadPoolFactory.newScheduledThreadPool(1, LoadTsFileManager.class.getName());
@@ -121,7 +121,7 @@ public class LoadTsFileManager {
     }
     TsFileWriterManager writerManager =
         uuid2WriterManager.computeIfAbsent(
-            uuid, o -> new TsFileWriterManager(SystemFileFactory.INSTANCE.getFile(loadDir, uuid)));
+            uuid, o -> new TsFileWriterManager(fsFactory.getFile(loadDir, uuid)));
     for (TsFileData tsFileData : pieceNode.getAllTsFileData()) {
       if (!tsFileData.isModification()) {
         ChunkData chunkData = (ChunkData) tsFileData;
@@ -156,12 +156,9 @@ public class LoadTsFileManager {
     uuid2Future.get(uuid).cancel(true);
     uuid2Future.remove(uuid);
 
-    final Path loadDirPath = loadDir.toPath();
-    if (!Files.exists(loadDirPath)) {
-      return;
-    }
+    final File loadDirPath = loadDir;
     try {
-      Files.delete(loadDirPath);
+      fsFactory.deleteIfExists(loadDirPath);
       LOGGER.info("Load dir {} was deleted.", loadDirPath);
     } catch (DirectoryNotEmptyException e) {
       LOGGER.info("Load dir {} is not empty, skip deleting.", loadDirPath);
@@ -175,12 +172,9 @@ public class LoadTsFileManager {
     uuid2WriterManager.remove(uuid);
     uuid2Future.remove(uuid);
 
-    final Path loadDirPath = loadDir.toPath();
-    if (!Files.exists(loadDirPath)) {
-      return;
-    }
+    final File loadDirPath = loadDir;
     try {
-      Files.delete(loadDirPath);
+      fsFactory.deleteIfExists(loadDirPath);
       LOGGER.info("Load dir {} was deleted.", loadDirPath);
     } catch (DirectoryNotEmptyException e) {
       LOGGER.info("Load dir {} is not empty, skip deleting.", loadDirPath);
@@ -206,7 +200,11 @@ public class LoadTsFileManager {
 
     private void clearDir(File dir) {
       if (dir.exists()) {
-        FileUtils.deleteDirectory(dir);
+        try {
+          fsFactory.deleteDirectory(dir.getPath());
+        } catch (IOException e) {
+          // ignore
+        }
       }
       if (dir.mkdirs()) {
         LOGGER.info("Load TsFile dir {} is created.", dir.getPath());
@@ -220,8 +218,7 @@ public class LoadTsFileManager {
       }
       if (!dataPartition2Writer.containsKey(partitionInfo)) {
         File newTsFile =
-            SystemFileFactory.INSTANCE.getFile(
-                taskDir, partitionInfo.toString() + TsFileConstant.TSFILE_SUFFIX);
+            fsFactory.getFile(taskDir, partitionInfo.toString() + TsFileConstant.TSFILE_SUFFIX);
         if (!newTsFile.createNewFile()) {
           LOGGER.error("Can not create TsFile {} for writing.", newTsFile.getPath());
           return;
@@ -280,9 +277,9 @@ public class LoadTsFileManager {
             if (writer.canWrite()) {
               writer.close();
             }
-            final Path writerPath = writer.getFile().toPath();
-            if (Files.exists(writerPath)) {
-              Files.delete(writerPath);
+            final File writerPath = writer.getFile();
+            if (writerPath.exists()) {
+              fsFactory.deleteIfExists(writerPath);
             }
           } catch (IOException e) {
             LOGGER.warn("Close TsFileIOWriter {} error.", entry.getValue().getFile().getPath(), e);
@@ -290,7 +287,7 @@ public class LoadTsFileManager {
         }
       }
       try {
-        Files.delete(taskDir.toPath());
+        fsFactory.deleteIfExists(taskDir);
       } catch (DirectoryNotEmptyException e) {
         LOGGER.info("Task dir {} is not empty, skip deleting.", taskDir.getPath());
       } catch (IOException e) {

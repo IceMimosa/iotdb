@@ -41,10 +41,10 @@ import org.apache.iotdb.db.storageengine.dataregion.wal.utils.WALMode;
 import org.apache.iotdb.db.utils.datastructure.TVListSortAlgorithm;
 import org.apache.iotdb.rpc.RpcTransportFactory;
 import org.apache.iotdb.rpc.RpcUtils;
-import org.apache.iotdb.tsfile.common.conf.TSFileDescriptor;
 import org.apache.iotdb.tsfile.common.constant.TsFileConstant;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSEncoding;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
 import org.apache.iotdb.tsfile.fileSystem.FSType;
 import org.apache.iotdb.tsfile.utils.FSUtils;
 
@@ -1226,7 +1226,9 @@ public class IoTDBConfig {
         }
         switch (FSUtils.getFSType(tierDataDirs[i][j])) {
           case HDFS:
-            tierDataDirs[i][j] = getHdfsDir() + File.separatorChar + tierDataDirs[i][j];
+            if (!tierDataDirs[i][j].startsWith("hdfs://")) {
+              tierDataDirs[i][j] = getHdfsDir() + File.separatorChar + tierDataDirs[i][j];
+            }
             break;
           case LOCAL:
             tierDataDirs[i][j] = addDataHomeDir(tierDataDirs[i][j]);
@@ -1270,7 +1272,15 @@ public class IoTDBConfig {
       return dir;
     }
 
-    File dataHomeFile = new File(dataHomeDir);
+    File dataHomeFile;
+    switch (FSUtils.getFSType(dataHomeDir)) {
+      case HDFS:
+        dataHomeFile = FSFactoryProducer.getFSFactory().getFile(dataHomeDir);
+        break;
+      default:
+        dataHomeFile = new File(dataHomeDir);
+        break;
+    }
     try {
       dataHomeDir = dataHomeFile.getCanonicalPath();
     } catch (IOException e) {
@@ -1299,12 +1309,12 @@ public class IoTDBConfig {
   }
 
   private String getHdfsDir() {
-    String[] hdfsIps = TSFileDescriptor.getInstance().getConfig().getHdfsIp();
+    String[] hdfsIps = IoTDBDescriptor.getInstance().getConfig().getHdfsIp();
     String hdfsDir = "hdfs://";
     if (hdfsIps.length > 1) {
-      hdfsDir += TSFileDescriptor.getInstance().getConfig().getDfsNameServices();
+      hdfsDir += IoTDBDescriptor.getInstance().getConfig().getDfsNameServices();
     } else {
-      hdfsDir += hdfsIps[0] + ":" + TSFileDescriptor.getInstance().getConfig().getHdfsPort();
+      hdfsDir += hdfsIps[0] + ":" + IoTDBDescriptor.getInstance().getConfig().getHdfsPort();
     }
     return hdfsDir;
   }

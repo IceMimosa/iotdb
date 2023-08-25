@@ -111,13 +111,11 @@ import org.apache.iotdb.tsfile.utils.Pair;
 import org.apache.iotdb.tsfile.write.schema.MeasurementSchema;
 import org.apache.iotdb.tsfile.write.writer.RestorableTsFileIOWriter;
 
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -422,9 +420,9 @@ public class DataRegion implements IDataRegionForQuery {
     try {
       // collect candidate TsFiles from sequential and unsequential data directory
       List<TsFileResource> tmpSeqTsFiles =
-          getAllFiles(TierManager.getInstance().getAllLocalSequenceFileFolders());
+          getAllFiles(TierManager.getInstance().getAllSequenceFileFolders());
       List<TsFileResource> tmpUnseqTsFiles =
-          getAllFiles(TierManager.getInstance().getAllLocalUnSequenceFileFolders());
+          getAllFiles(TierManager.getInstance().getAllUnSequenceFileFolders());
 
       // split by partition so that we can find the last file of each partition and decide to
       // close it or not
@@ -652,9 +650,9 @@ public class DataRegion implements IDataRegionForQuery {
       for (File tempResource : files) {
         File originResource = fsFactory.getFile(tempResource.getPath().replace(suffix, ""));
         if (originResource.exists()) {
-          Files.delete(tempResource.toPath());
+          fsFactory.deleteIfExists(tempResource);
         } else {
-          Files.move(tempResource.toPath(), originResource.toPath());
+          fsFactory.moveFile(tempResource, originResource);
         }
       }
     }
@@ -2403,9 +2401,9 @@ public class DataRegion implements IDataRegionForQuery {
     }
     try {
       if (deleteOriginFile) {
-        FileUtils.moveFile(tsFileToLoad, targetFile);
+        fsFactory.moveFile(tsFileToLoad, targetFile);
       } else {
-        Files.copy(tsFileToLoad.toPath(), targetFile.toPath());
+        fsFactory.copyFile(tsFileToLoad, targetFile);
       }
     } catch (IOException e) {
       logger.error(
@@ -2425,9 +2423,9 @@ public class DataRegion implements IDataRegionForQuery {
         fsFactory.getFile(targetFile.getAbsolutePath() + TsFileResource.RESOURCE_SUFFIX);
     try {
       if (deleteOriginFile) {
-        FileUtils.moveFile(resourceFileToLoad, targetResourceFile);
+        fsFactory.moveFile(resourceFileToLoad, targetResourceFile);
       } else {
-        Files.copy(resourceFileToLoad.toPath(), targetResourceFile.toPath());
+        fsFactory.copyFile(resourceFileToLoad, targetResourceFile);
       }
     } catch (IOException e) {
       logger.error(
@@ -2451,15 +2449,15 @@ public class DataRegion implements IDataRegionForQuery {
       File targetModFile =
           fsFactory.getFile(targetFile.getAbsolutePath() + ModificationFile.FILE_SUFFIX);
       try {
-        Files.deleteIfExists(targetModFile.toPath());
+        fsFactory.deleteIfExists(targetModFile);
       } catch (IOException e) {
         logger.warn("Cannot delete localModFile {}", targetModFile, e);
       }
       try {
         if (deleteOriginFile) {
-          FileUtils.moveFile(modFileToLoad, targetModFile);
+          fsFactory.moveFile(modFileToLoad, targetModFile);
         } else {
-          Files.copy(modFileToLoad.toPath(), targetModFile.toPath());
+          fsFactory.copyFile(modFileToLoad, targetModFile);
         }
       } catch (IOException e) {
         logger.error(
@@ -2807,7 +2805,7 @@ public class DataRegion implements IDataRegionForQuery {
   public long countRegionDiskSize() {
     AtomicLong diskSize = new AtomicLong(0);
     TierManager.getInstance()
-        .getAllLocalFilesFolders()
+        .getAllFilesFolders()
         .forEach(
             folder -> {
               folder = folder + File.separator + databaseName + File.separator + dataRegionId;
@@ -2856,7 +2854,7 @@ public class DataRegion implements IDataRegionForQuery {
       }
     } else {
       for (String tsFilePath : tsFilePaths) {
-        File fileToBeSettled = new File(tsFilePath);
+        File fileToBeSettled = FSFactoryProducer.getFSFactory().getFile(tsFilePath);
         if ("sequence"
             .equals(
                 fileToBeSettled

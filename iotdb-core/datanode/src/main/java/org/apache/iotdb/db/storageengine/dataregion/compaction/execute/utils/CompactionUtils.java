@@ -105,8 +105,11 @@ public class CompactionUtils {
       return;
     }
     File newFile =
-        new File(
-            targetResource.getTsFilePath().replace(tmpFileSuffix, TsFileConstant.TSFILE_SUFFIX));
+        FSFactoryProducer.getFSFactory()
+            .getFile(
+                targetResource
+                    .getTsFilePath()
+                    .replace(tmpFileSuffix, TsFileConstant.TSFILE_SUFFIX));
     if (!newFile.exists()) {
       FSFactoryProducer.getFSFactory().moveFile(targetResource.getTsFile(), newFile);
     }

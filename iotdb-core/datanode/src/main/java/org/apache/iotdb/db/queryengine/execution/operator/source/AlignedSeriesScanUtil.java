@@ -40,12 +40,17 @@ import org.apache.iotdb.tsfile.read.filter.basic.Filter;
 import org.apache.iotdb.tsfile.read.reader.IPointReader;
 import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class AlignedSeriesScanUtil extends SeriesScanUtil {
+
+  private static final Logger logger = LoggerFactory.getLogger(AlignedSeriesScanUtil.class);
 
   private final List<TSDataType> dataTypes;
 

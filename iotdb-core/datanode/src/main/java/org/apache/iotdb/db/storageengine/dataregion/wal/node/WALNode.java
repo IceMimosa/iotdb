@@ -399,7 +399,8 @@ public class WALNode implements IWALNode {
       // it's snapshot count or size reach threshold.
       int snapshotCount = memTableSnapshotCount.getOrDefault(oldestMemTable.getMemTableId(), 0);
       long oldestMemTableTVListsRamCost = oldestMemTable.getTVListsRamCost();
-      if (TsFileUtils.getTimePartition(new File(oldestMemTableInfo.getTsFilePath()))
+      if (TsFileUtils.getTimePartition(
+                  FSFactoryProducer.getFSFactory().getFile(oldestMemTableInfo.getTsFilePath()))
               < dataRegion.getLatestTimePartition()
           || snapshotCount >= config.getMaxWalMemTableSnapshotNum()
           || oldestMemTableTVListsRamCost > config.getWalMemTableSnapshotThreshold()) {

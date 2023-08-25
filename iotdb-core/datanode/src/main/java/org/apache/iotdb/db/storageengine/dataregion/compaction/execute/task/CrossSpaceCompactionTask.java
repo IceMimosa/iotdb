@@ -38,8 +38,8 @@ import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResourceList;
 import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResourceStatus;
 import org.apache.iotdb.db.storageengine.dataregion.tsfile.generator.TsFileNameGenerator;
 import org.apache.iotdb.db.storageengine.rescon.memory.SystemInfo;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
 
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -126,7 +126,7 @@ public class CrossSpaceCompactionTask extends AbstractCompactionTask {
       LOGGER.info(
           "{}-{} [Compaction] CrossSpaceCompaction task starts with {} seq files "
               + "and {} unsequence files. "
-              + "Sequence files : {}, unsequence files : {} . "
+              + "Sequence files : {}, unsequence files : {}, target files: {} . "
               + "Sequence files size is {} MB, "
               + "unsequence file size is {} MB, "
               + "total size is {} MB",
@@ -136,16 +136,18 @@ public class CrossSpaceCompactionTask extends AbstractCompactionTask {
           selectedUnsequenceFiles.size(),
           selectedSequenceFiles,
           selectedUnsequenceFiles,
+          targetTsfileResourceList,
           selectedSeqFileSize / 1024 / 1024,
           selectedUnseqFileSize / 1024 / 1024,
           (selectedSeqFileSize + selectedUnseqFileSize) / 1024 / 1024);
 
       logFile =
-          new File(
-              selectedSequenceFiles.get(0).getTsFile().getParent()
-                  + File.separator
-                  + targetTsfileResourceList.get(0).getTsFile().getName()
-                  + CompactionLogger.CROSS_COMPACTION_LOG_NAME_SUFFIX);
+          FSFactoryProducer.getFSFactory()
+              .getFile(
+                  selectedSequenceFiles.get(0).getTsFile().getParent()
+                      + File.separator
+                      + targetTsfileResourceList.get(0).getTsFile().getName()
+                      + CompactionLogger.CROSS_COMPACTION_LOG_NAME_SUFFIX);
 
       try (CompactionLogger compactionLogger = new CompactionLogger(logFile)) {
         // print the path of the temporary file first for priority check during recovery
@@ -251,7 +253,7 @@ public class CrossSpaceCompactionTask extends AbstractCompactionTask {
             summary);
       }
       if (logFile.exists()) {
-        FileUtils.delete(logFile);
+        FSFactoryProducer.getFSFactory().deleteIfExists(logFile);
       }
     } catch (Exception e) {
       isSuccess = false;

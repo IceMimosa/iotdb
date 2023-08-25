@@ -256,7 +256,7 @@ public class TsFileResource {
       ReadWriteIOUtils.write(minPlanIndex, outputStream);
 
       if (modFile != null && modFile.exists()) {
-        String modFileName = new File(modFile.getFilePath()).getName();
+        String modFileName = fsFactory.getFile(modFile.getFilePath()).getName();
         ReadWriteIOUtils.write(modFileName, outputStream);
       } else {
         // make the first "inputStream.available() > 0" in deserialize() happy.
@@ -297,7 +297,7 @@ public class TsFileResource {
       if (inputStream.available() > 0) {
         String modFileName = ReadWriteIOUtils.readString(inputStream);
         if (modFileName != null) {
-          File modF = new File(file.getParentFile(), modFileName);
+          File modF = fsFactory.getFile(file.getParentFile(), modFileName);
           modFile = new ModificationFile(modF.getPath());
         }
       }
@@ -342,7 +342,7 @@ public class TsFileResource {
       if (inputStream.available() > 0) {
         String modFileName = ReadWriteIOUtils.readString(inputStream);
         if (modFileName != null) {
-          File modF = new File(file.getParentFile(), modFileName);
+          File modF = fsFactory.getFile(file.getParentFile(), modFileName);
           modFile = new ModificationFile(modF.getPath());
         }
       }
@@ -597,7 +597,8 @@ public class TsFileResource {
     try {
       fsFactory.deleteIfExists(file);
       fsFactory.deleteIfExists(
-          new File(file.getAbsolutePath() + TsFileIOWriter.CHUNK_METADATA_TEMP_FILE_SUFFIX));
+          fsFactory.getFile(
+              file.getAbsolutePath() + TsFileIOWriter.CHUNK_METADATA_TEMP_FILE_SUFFIX));
     } catch (IOException e) {
       LOGGER.error("TsFile {} cannot be deleted: {}", file, e.getMessage());
       return false;
@@ -898,7 +899,7 @@ public class TsFileResource {
     while (true) {
       String hardlinkSuffix =
           TsFileConstant.PATH_SEPARATOR + System.currentTimeMillis() + "_" + random.nextLong();
-      File hardlink = new File(file.getAbsolutePath() + hardlinkSuffix);
+      File hardlink = fsFactory.getFile(file.getAbsolutePath() + hardlinkSuffix);
 
       try {
         Files.createLink(Paths.get(hardlink.getAbsolutePath()), Paths.get(file.getAbsolutePath()));
