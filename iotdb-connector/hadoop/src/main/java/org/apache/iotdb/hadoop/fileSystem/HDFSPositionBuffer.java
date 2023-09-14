@@ -42,7 +42,7 @@ public class HDFSPositionBuffer implements Serializable {
     // 1. 128KB read with metadata at the footer
     // 2. file is not big enough to red
     // 3. read size is larger than buffer size
-    if (position + 131072 > endPos + 1 || position + size > endPos + 1 || size > bufferSize) {
+    if (position + 131072 > endPos + 1 || position + size >= endPos + 1 || size > bufferSize) {
       byte[] bytes = new byte[size];
       in.readFully(position, bytes);
       return bytes;
