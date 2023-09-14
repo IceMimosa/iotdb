@@ -180,6 +180,14 @@ public class TsFileIOWriter implements AutoCloseable {
     chunkMetadataList = new ArrayList<>();
   }
 
+  public int startChunkGroupHeader(String deviceId) throws IOException {
+    if (logger.isDebugEnabled()) {
+      logger.debug("start chunk group:{}, file position {}", deviceId, out.getPosition());
+    }
+    ChunkGroupHeader chunkGroupHeader = new ChunkGroupHeader(currentChunkGroupDeviceId);
+    return chunkGroupHeader.serializeTo(out.wrapAsStream());
+  }
+
   public int startChunkGroup(String deviceId) throws IOException {
     this.currentChunkGroupDeviceId = deviceId;
     if (logger.isDebugEnabled()) {
