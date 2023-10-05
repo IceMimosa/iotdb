@@ -253,7 +253,7 @@ public class HDFSFile extends File {
       Path p = new Path(filePath);
       if (append) {
         if (!fs.exists(p)) {
-          fs.create(p);
+          fs.createNewFile(p);
         }
         HDFSUtils.recoverFileLease(fs, p);
         return new BufferedWriter(new OutputStreamWriter(fs.append(p)));
