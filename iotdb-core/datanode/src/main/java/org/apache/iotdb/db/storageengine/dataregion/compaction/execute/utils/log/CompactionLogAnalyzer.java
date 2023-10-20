@@ -21,10 +21,11 @@ package org.apache.iotdb.db.storageengine.dataregion.compaction.execute.utils.lo
 
 import org.apache.iotdb.commons.conf.IoTDBConstant;
 import org.apache.iotdb.tsfile.common.constant.TsFileConstant;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
+import org.apache.iotdb.tsfile.fileSystem.fsFactory.FSFactory;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +43,7 @@ import static org.apache.iotdb.db.storageengine.dataregion.compaction.execute.ut
 
 public class CompactionLogAnalyzer {
 
+  private final FSFactory fsFactory = FSFactoryProducer.getFSFactory();
   private final File logFile;
   private final List<TsFileIdentifier> sourceFileInfos = new ArrayList<>();
   private final List<TsFileIdentifier> targetFileInfos = new ArrayList<>();
@@ -59,7 +61,7 @@ public class CompactionLogAnalyzer {
    */
   public void analyze() throws IOException {
     String currLine;
-    try (BufferedReader bufferedReader = new BufferedReader(new FileReader(logFile))) {
+    try (BufferedReader bufferedReader = fsFactory.getBufferedReader(logFile.getPath())) {
       while ((currLine = bufferedReader.readLine()) != null) {
         String fileInfo;
         if (currLine.startsWith(STR_SOURCE_FILES)) {
@@ -85,7 +87,7 @@ public class CompactionLogAnalyzer {
   public void analyzeOldInnerCompactionLog() throws IOException {
     isLogFromOld = true;
     String currLine;
-    try (BufferedReader bufferedReader = new BufferedReader(new FileReader(logFile))) {
+    try (BufferedReader bufferedReader = fsFactory.getBufferedReader(logFile.getPath())) {
       while ((currLine = bufferedReader.readLine()) != null) {
         switch (currLine) {
           case STR_SOURCE_FILES_FROM_OLD:
@@ -124,7 +126,7 @@ public class CompactionLogAnalyzer {
     isLogFromOld = true;
     String currLine;
     boolean isSeqSource = true;
-    try (BufferedReader bufferedReader = new BufferedReader(new FileReader(logFile))) {
+    try (BufferedReader bufferedReader = fsFactory.getBufferedReader(logFile.getPath())) {
       while ((currLine = bufferedReader.readLine()) != null) {
         if (currLine.equals(STR_UNSEQ_FILES_FROM_OLD)) {
           isSeqSource = false;
