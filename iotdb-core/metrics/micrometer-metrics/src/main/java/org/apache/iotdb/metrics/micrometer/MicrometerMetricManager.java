@@ -77,7 +77,8 @@ public class MicrometerMetricManager extends AbstractMetricManager {
     io.micrometer.core.instrument.DistributionSummary distributionSummary =
         io.micrometer.core.instrument.DistributionSummary.builder(metricInfo.getName())
             .tags(metricInfo.getTagsInArray())
-            .publishPercentiles(0.5, 0.99)
+            // .publishPercentiles(0.5, 0.9, 0.99)
+            .publishPercentiles(0.9, 0.95)
             .register(meterRegistry);
     return new MicrometerHistogram(distributionSummary);
   }
@@ -94,7 +95,8 @@ public class MicrometerMetricManager extends AbstractMetricManager {
     io.micrometer.core.instrument.Timer timer =
         io.micrometer.core.instrument.Timer.builder(metricInfo.getName())
             .tags(metricInfo.getTagsInArray())
-            .publishPercentiles(0.5, 0.99)
+            // .publishPercentiles(0.5, 0.9, 0.99)
+            .publishPercentiles(0.9, 0.95)
             .register(meterRegistry);
     return new MicrometerTimer(timer);
   }

@@ -44,7 +44,9 @@ public interface HistogramSnapshot extends IMetric {
     result.put("max", getMax());
     result.put("sum", getSum());
 
-    result.put("p50", getValue(0.5));
-    result.put("p99", getValue(0.99));
+    // result.put("p50", getValue(0.5));
+    // result.put("p99", getValue(0.99));
+    result.put("p90", getValue(0.9));
+    result.put("p95", getValue(0.95));
   }
 }

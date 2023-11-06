@@ -186,10 +186,14 @@ public class PrometheusReporter implements Reporter {
     prometheusTextWriter.writeSample(name + "_sum", tags, snapshot.getSum());
     prometheusTextWriter.writeSample(name + "_count", tags, count);
 
+    //    prometheusTextWriter.writeSample(
+    //        name, addTags(tags, "quantile", "0.5"), snapshot.getValue(0.5));
+    //    prometheusTextWriter.writeSample(
+    //        name, addTags(tags, "quantile", "0.99"), snapshot.getValue(0.99));
     prometheusTextWriter.writeSample(
-        name, addTags(tags, "quantile", "0.5"), snapshot.getValue(0.5));
+        name, addTags(tags, "quantile", "0.9"), snapshot.getValue(0.9));
     prometheusTextWriter.writeSample(
-        name, addTags(tags, "quantile", "0.99"), snapshot.getValue(0.99));
+        name, addTags(tags, "quantile", "0.95"), snapshot.getValue(0.95));
   }
 
   private Map<String, String> addTags(Map<String, String> tags, String key, String value) {
